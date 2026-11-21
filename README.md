@@ -33,7 +33,7 @@ shasum -a 256 -c SHA256SUMS.txt
 
 ## What Changed
 
-Across three incremental passes (`Pass 1` -> `Pass 2` -> `Pass 3`), this release hardens, speeds up, and stabilizes the base PixelExperience 13 Plus build without wiping user data. See [`CHANGELOG.md`](CHANGELOG.md) for per-release notes and [`patches/`](patches/) for the exact diffs.
+Hardens, speeds up, and stabilizes the base PixelExperience 13 Plus build without wiping user data. See [`CHANGELOG.md`](CHANGELOG.md) for per-release notes and [`patches/`](patches/) for the exact diffs.
 
 ### 1. Kernel & Stability (`4.4.302-dream2lte-polished-p3`, `clang-14`, 0 modpost warnings)
 - **SELinux Enforcing**: Removed the forced permissive override in `security/selinux/selinuxfs.c` (`new_value = 0;`), unset `CONFIG_ALWAYS_PERMISSIVE`, and enabled `CONFIG_AUDIT=y` with `CONFIG_AUDITSYSCALL=n` (preserves SELinux AVC reporting without per-syscall audit overhead).
@@ -104,37 +104,6 @@ adb shell "pm clear com.android.vending && am force-stop com.google.android.gms"
 *(Never run `pm clear com.google.android.gms` when testing Play Integrity.)*
 
 ---
-
-## Repository Structure
-
-```text
-.
-├── CHANGELOG.md                     # Detailed Pass 2 & Pass 3 changelogs
-├── README.md
-├── SHA256SUMS.txt                   # Release ZIP & CHANGELOG checksums
-├── config/
-│   └── dream2lte-pass3.config       # Exact compiled kernel .config
-├── manifests/
-│   ├── android13-linux-host.xml     # Linux host tool adjustments
-│   └── dream2lte-android13.xml      # Device/kernel/vendor manifest derived from ivanmeler/local_manifests
-├── patches/
-│   ├── dream2lte-combined-kernel.patch  # Full Pass 1+2+3 kernel diff (550 lines)
-│   ├── dream2lte-pass1-kernel.patch     # Pass 1 kernel fixes
-│   ├── dream2lte-pass2-kernel.patch     # Pass 2 D-state / idle load fixes
-│   ├── dream2lte-pass3-kernel.patch     # Pass 3 cpufreq, bcmdhd4361, bt, gpu, defconfig fixes
-│   ├── dream2lte-product.patch          # Device product props
-│   ├── dream2lte-radio-config.patch     # Dual-SIM RIL / EFS config
-│   └── universal8895-common.patch       # Init, PowerHAL, SELinux, fstab, system props (768 lines)
-└── tools/
-    ├── build-enforcing-kernel.sh        # Kernel build helper
-    ├── build-release-zip.sh             # Reproducible ext4 debugfs + sdat + CMS OTA ZIP builder/verifier
-    ├── check-dream2lte.sh               # Quick ADB health check
-    ├── otasign.py                       # CMS / SignApk OTA signer & verifier
-    ├── pack-dream2lte-boot.py           # Boot image repacker
-    ├── raw2sdat.py                      # Android sparse data v4 converter
-    ├── regression-dream2lte.sh          # Full on-device regression & Play Integrity test script
-    └── sdat2img_stream.py               # Stream sdat round-trip verifier
-```
 
 ## Disclaimer
 Custom ROMs and kernel modifications carry inherent risk. Always keep a working TWRP and EFS backup before flashing.
