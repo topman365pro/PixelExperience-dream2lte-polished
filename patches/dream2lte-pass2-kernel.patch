@@ -1,0 +1,60 @@
+--- drivers/devfreq/governor_simpleinteractive.c.pass1	2022-09-20 19:52:37.000000000 +0000
++++ drivers/devfreq/governor_simpleinteractive.c	2026-11-20 16:01:39.436458993 +0000
+@@ -346,6 +346,9 @@
+ 	kthread_bind(data->change_freq_task, BOUND_CPU_NUM);
+ #endif
+ 
++	/* Park the thread in its interruptible wait loop so idle governors do not inflate loadavg. */
++	wake_up_process(data->change_freq_task);
++
+ 	return 0;
+ 
+ err2:
+--- drivers/gud/gud-exynos8895_kinibi400/MobiCoreDriver/nq.c.pass1	2022-09-20 19:52:37.000000000 +0000
++++ drivers/gud/gud-exynos8895_kinibi400/MobiCoreDriver/nq.c	2026-11-20 16:01:39.452458740 +0000
+@@ -231,8 +231,11 @@
+ {
+ 	struct notification_queue *rx = l_ctx.nq.rx;
+ 
+-	while (l_ctx.irq_bh_active) {
+-		wait_for_completion_killable(&l_ctx.irq_bh_complete);
++	while (l_ctx.irq_bh_active && !kthread_should_stop()) {
++		if (wait_for_completion_interruptible(&l_ctx.irq_bh_complete))
++			continue;
++		if (!l_ctx.irq_bh_active || kthread_should_stop())
++			break;
+ 
+ 		/* Deal with all pending notifications in one go */
+ 		while ((rx->hdr.write_cnt - rx->hdr.read_cnt) > 0) {
+@@ -655,6 +658,7 @@
+ {
+ 	free_irq(l_ctx.irq, NULL);
+ 	l_ctx.irq_bh_active = false;
++	complete(&l_ctx.irq_bh_complete);
+ 	kthread_stop(l_ctx.irq_bh_thread);
+ }
+ 
+--- drivers/gud/gud-exynos8895_kinibi400/MobiCoreDriver/scheduler.c.pass1	2022-09-20 19:52:37.000000000 +0000
++++ drivers/gud/gud-exynos8895_kinibi400/MobiCoreDriver/scheduler.c	2026-11-20 16:01:39.453458723 +0000
+@@ -140,14 +140,19 @@
+ 				    timeout_ms > DEFAULT_TIMEOUT_MS)
+ 					timeout_ms = DEFAULT_TIMEOUT_MS;
+ 
+-				if (!wait_for_completion_timeout(
++				long wret = wait_for_completion_interruptible_timeout(
+ 					&sched_ctx.idle_complete,
+-					msecs_to_jiffies(timeout_ms))) {
++					msecs_to_jiffies(timeout_ms));
++				if (wret == 0) {
+ 					if (infinite_timeout)
+ 						continue;
+ 
+ 					/* Timed out, force SWd schedule */
+ 					mc_scheduler_command(NSIQ);
++				} else if (wret < 0) {
++					if (kthread_should_stop() || !sched_ctx.thread_run)
++						break;
++					continue;
+ 				}
+ 			}
+ 			/* If multiple commands have been posted,

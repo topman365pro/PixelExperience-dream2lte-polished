@@ -1,0 +1,768 @@
+diff --git a/BoardConfigCommon.mk b/BoardConfigCommon.mk
+index c77f23d..995a60e 100644
+--- a/BoardConfigCommon.mk
++++ b/BoardConfigCommon.mk
+@@ -151,11 +151,10 @@ WIFI_HIDL_UNIFIED_SUPPLICANT_SERVICE_RC_ENTRY := true
+ BOARD_HAVE_SAMSUNG_WIFI          := true
+ 
+ # Sepolicy
+-include device/lineage/sepolicy/exynos/sepolicy.mk
++include device/custom/sepolicy/exynos/sepolicy.mk
+ BOARD_SEPOLICY_TEE_FLAVOR := mobicore
+ include device/samsung_slsi/sepolicy/sepolicy.mk
+ BOARD_SEPOLICY_DIRS += device/samsung/universal8895-common/sepolicy/vendor
+-SELINUX_IGNORE_NEVERALLOWS := true
+ 
+ # Ril
+ ENABLE_VENDOR_RIL_SERVICE := true
+diff --git a/configs/power/powerhint.json b/configs/power/powerhint.json
+index c27fa9e..e29b9aa 100644
+--- a/configs/power/powerhint.json
++++ b/configs/power/powerhint.json
+@@ -48,7 +48,7 @@
+                 "1"
+             ],
+             "DefaultIndex": 0,
+-            "ResetOnInit": true
++            "ResetOnInit": false
+         },
+         {
+             "Name": "CPUBigClusterMaxFreq",
+@@ -66,14 +66,15 @@
+             "Name": "CPUBigClusterMinFreq",
+             "Path": "/sys/devices/system/cpu/cpu4/cpufreq/scaling_min_freq",
+             "Values": [
+-                "1794000",
++                "1807000",
+                 "1469000",
+                 "1261000",
+                 "1066000",
+                 "858000",
+                 "741000"
+             ],
+-            "ResetOnInit": true
++            "ResetOnInit": true,
++            "DefaultIndex": 5
+         },
+         {
+             "Name": "CPULittleClusterMaxFreq",
+@@ -96,7 +97,8 @@
+                 "832000",
+                 "455000"
+             ],
+-            "ResetOnInit": true
++            "ResetOnInit": true,
++            "DefaultIndex": 3
+         },
+         {
+             "Name": "GPUMaxFreq",
+@@ -118,7 +120,8 @@
+                 "338000",
+                 "260000"
+             ],
+-            "ResetOnInit": true
++            "ResetOnInit": true,
++            "DefaultIndex": 3
+         },
+         {
+             "Name": "PMQoSCpuDmaLatency",
+@@ -223,37 +226,37 @@
+         {
+             "PowerHint": "LAUNCH",
+             "Node": "CPUBigClusterBoost",
+-            "Duration": 5000,
++            "Duration": 2000,
+             "Value": "1"
+         },
+         {
+             "PowerHint": "LAUNCH",
+             "Node": "CPULittleClusterBoost",
+-            "Duration": 5000,
++            "Duration": 2000,
+             "Value": "1"
+         },
+         {
+             "PowerHint": "LAUNCH",
+             "Node": "CPUBigClusterMaxFreq",
+-            "Duration": 5000,
+-            "Value": "1937000"
++            "Duration": 2000,
++            "Value": "2314000"
+         },
+         {
+             "PowerHint": "LAUNCH",
+             "Node": "CPUBigClusterMinFreq",
+-            "Duration": 5000,
++            "Duration": 2000,
+             "Value": "1469000"
+         },
+         {
+             "PowerHint": "LAUNCH",
+             "Node": "CPULittleClusterMinFreq",
+-            "Duration": 5000,
++            "Duration": 2000,
+             "Value": "1248000"
+         },
+         {
+             "PowerHint": "LAUNCH",
+             "Node": "PMQoSCpuDmaLatency",
+-            "Duration": 5000,
++            "Duration": 1500,
+             "Value": "44"
+         },
+         {
+@@ -417,6 +420,24 @@
+             "Node": "DoubleTapToWakeRect",
+             "Duration": 0,
+             "Value": "set_aod_rect,1440,2960,0,0"
++        },
++        {
++            "PowerHint": "LOW_POWER",
++            "Node": "CPUBigClusterMaxFreq",
++            "Duration": 0,
++            "Value": "1937000"
++        },
++        {
++            "PowerHint": "LOW_POWER",
++            "Node": "CPULittleClusterMaxFreq",
++            "Duration": 0,
++            "Value": "1456000"
++        },
++        {
++            "PowerHint": "LOW_POWER",
++            "Node": "GPUMaxFreq",
++            "Duration": 0,
++            "Value": "455000"
+         }
+     ]
+ }
+diff --git a/device-common.mk b/device-common.mk
+index 2207eac..c21ee99 100644
+--- a/device-common.mk
++++ b/device-common.mk
+@@ -311,10 +311,6 @@ PRODUCT_COPY_FILES += \
+ PRODUCT_COPY_FILES += \
+     $(COMMON_PATH)/configs/samsung-sec_e-pen.idc:system/usr/idc/sec_e-pen.idc
+ 
+-# Trust HAL
+-PRODUCT_PACKAGES += \
+-    vendor.lineage.trust@1.0-service
+-
+ # USB
+ PRODUCT_PACKAGES += \
+     android.hardware.usb-service.samsung
+diff --git a/ramdisk/etc/fstab.samsungexynos8895 b/ramdisk/etc/fstab.samsungexynos8895
+index d5346c6..c600509 100644
+--- a/ramdisk/etc/fstab.samsungexynos8895
++++ b/ramdisk/etc/fstab.samsungexynos8895
+@@ -19,5 +19,5 @@
+ /devices/platform/11500000.dwmmc2/mmc_host*             auto        vfat    defaults    voldmanaged=sdcard:auto
+ /devices/platform/10c00000.usb/10c00000.dwc3*           auto        auto    defaults    voldmanaged=usb:auto
+ 
+-# ZRAM
+-/dev/block/zram0                                        none        swap    defaults    zramsize=2147483648,max_comp_streams=8,zram_backingdev_size=512M
++# The Exynos 8895 kernel supports compressed swap without a backing device.
++/dev/block/zram0                                        none        swap    defaults    zramsize=2147483648,max_comp_streams=8
+diff --git a/ramdisk/etc/init.baseband.rc b/ramdisk/etc/init.baseband.rc
+index 2f7abe4..428f497 100644
+--- a/ramdisk/etc/init.baseband.rc
++++ b/ramdisk/etc/init.baseband.rc
+@@ -29,14 +29,13 @@ on fs
+     chmod 0775 /data/log/err
+     chown radio radio /data/log/err
+ 
+-# SS/DS configuration
+-on property:ro.multisim.simslotcount=*
+-   write /sys/module/modem_ctrl_ss310ap/parameters/ds_detect ${ro.multisim.simslotcount}
+-
+-on property:ro.multisim.simslotcount=1
++# Use the same SIM count as the vendor RIL configuration service.
++on property:ro.vendor.multisim.simslotcount=1
++    write /sys/module/modem_ctrl_ss310ap/parameters/ds_detect 1
+     setprop persist.radio.multisim.config ss
+ 
+-on property:ro.multisim.simslotcount=2
++on property:ro.vendor.multisim.simslotcount=2
++    write /sys/module/modem_ctrl_ss310ap/parameters/ds_detect 2
+     setprop persist.radio.multisim.config dsds
+ 
+ service cpboot-daemon /vendor/bin/cbd -d -tss310 -bm -mm -P platform/11120000.ufs/by-name/RADIO -n /efs
+diff --git a/ramdisk/etc/init.samsung.rc b/ramdisk/etc/init.samsung.rc
+index 90e3fc9..0771f74 100644
+--- a/ramdisk/etc/init.samsung.rc
++++ b/ramdisk/etc/init.samsung.rc
+@@ -284,11 +284,7 @@ on post-fs-data
+     mkdir /data/app_fonts 0775 system system
+ 
+ # [ SEC_SELINUX_PORTING_COMMON
+-    exec u:r:vendor_init:s0 root root -- /vendor/bin/toybox_vendor restorecon -RF /efs
+-    exec u:r:vendor_init:s0 root root -- /vendor/bin/toybox_vendor restorecon -RF /cpefs
+-    exec u:r:vendor_init:s0 root root -- /vendor/bin/toybox_vendor restorecon -RF /mnt/vendor/efs
+-    exec u:r:vendor_init:s0 root root -- /vendor/bin/toybox_vendor restorecon -RF /mnt/vendor/cpefs
+-    exec u:r:vendor_init:s0 root root -- /vendor/bin/toybox_vendor restorecon -RF /sec_efs
++    restorecon_recursive /efs /cpefs /mnt/vendor/efs /mnt/vendor/cpefs /sec_efs
+     restorecon_recursive /carrier
+     restorecon /sys/kernel/debug/tracing/trace_marker
+ # ] SEC_SELINUX_PORTING_COMMON
+diff --git a/ramdisk/etc/init.samsungexynos8895.rc b/ramdisk/etc/init.samsungexynos8895.rc
+index cb94c3e..1684daa 100644
+--- a/ramdisk/etc/init.samsungexynos8895.rc
++++ b/ramdisk/etc/init.samsungexynos8895.rc
+@@ -150,7 +150,7 @@ on post-fs-data
+ 
+ on boot
+ # SSWAP
+-    write /proc/sys/vm/swappiness 160
++    write /proc/sys/vm/swappiness 100
+ 
+     # Allow to access debugfs for system:system
+     chmod 0755 /sys/kernel/debug
+@@ -235,6 +235,8 @@ on boot
+     chmod 0664 /sys/module/cpuidle/parameters/priv_disable
+ 
+     #CPUFREQ
++    chown system system /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
++    chmod 0664 /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+     chown system system /sys/power/cpufreq_min_limit
+     chown system system /sys/power/cpufreq_max_limit
+     chown system system /sys/power/cpufreq_table
+@@ -529,10 +531,10 @@ on boot
+     write /dev/cpuctl/bg_abnormal/cpu.cfs_quota_us 10000
+ 
+     mkdir /dev/cpuset/cached
+-    write /dev/cpuset/cached/cpus 0-2
++    write /dev/cpuset/cached/cpus 0-3
+     copy /dev/cpuset/mems /dev/cpuset/cached/mems
+     mkdir /dev/cpuset/abnormal
+-    write /dev/cpuset/abnormal/cpus 0-2
++    write /dev/cpuset/abnormal/cpus 0-3
+     copy /dev/cpuset/mems /dev/cpuset/abnormal/mems
+ 
+     # change permissions for BarTender's cpusets we'll touch at runtime
+@@ -552,23 +554,22 @@ on boot
+     chown system system /dev/cpuset/foreground/cpus
+     chown system system /dev/cpuset/background/cpus
+     chown system system /dev/cpuset/system-background/cpus
+-    chown system system /dev/cpuset/surfaceflinger/cpus
+     chmod 664 /dev/cpuset/top-app/cpus
+     chmod 664 /dev/cpuset/foreground/cpus
+     chmod 664 /dev/cpuset/background/cpus
+     chmod 664 /dev/cpuset/system-background/cpus
+-    chmod 664 /dev/cpuset/surfaceflinger/cpus
+     write /dev/cpuset/top-app/cpus 0-7
+     write /dev/cpuset/top-app/mems 0
+     write /dev/cpuset/top-app/family_boost 1
+-    write /dev/cpuset/foreground/cpus 0-2,4-7
++    write /dev/cpuset/foreground/cpus 0-7
+     write /dev/cpuset/foreground/mems 0
+     write /dev/cpuset/background/cpus 0-1
+     write /dev/cpuset/background/mems 0
+-    write /dev/cpuset/system-background/cpus 0-2
++    write /dev/cpuset/system-background/cpus 0-3
+     write /dev/cpuset/system-background/mems 0
+-    write /dev/cpuset/surfaceflinger/cpus 0-2
+-    write /dev/cpuset/surfaceflinger/mems 0
++    write /dev/cpuset/restricted/cpus 0-3
++    write /dev/cpuset/restricted/mems 0
++    write /sys/kernel/hmp/wakeup_to_idle_cpu 1
+ 
+ # ZRAM setup
+     write /sys/block/zram0/comp_algorithm lz4
+@@ -576,7 +577,6 @@ on boot
+ 
+ on fs
+     mount_all /vendor/etc/fstab.samsungexynos8895
+-    setprop ro.crypto.fuse_sdcard true
+     chown radio system /efs
+     restorecon_recursive /efs
+ 
+@@ -645,23 +645,23 @@ on fs
+     chmod 700 /cache/poc
+ 
+ # Set cpu governor params
+-    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/timer_rate 20000
++    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/timer_rate 16000
+     write /sys/devices/system/cpu/cpu0/cpufreq/interactive/timer_slack 20000
+     write /sys/devices/system/cpu/cpu0/cpufreq/interactive/min_sample_time 40000
+     write /sys/devices/system/cpu/cpu0/cpufreq/interactive/boostpulse_duration 40000
+-    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/timer_rate 20000
++    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/timer_rate 16000
+     write /sys/devices/system/cpu/cpu4/cpufreq/interactive/timer_slack 20000
+     write /sys/devices/system/cpu/cpu4/cpufreq/interactive/min_sample_time 40000
+     write /sys/devices/system/cpu/cpu4/cpufreq/interactive/boostpulse_duration 40000
+ 
+-    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/hispeed_freq 858000
++    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/hispeed_freq 1053000
+     write /sys/devices/system/cpu/cpu0/cpufreq/interactive/go_hispeed_load 85
+-    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/target_loads "75 1170000:85"
+-    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/above_hispeed_delay "19000 1274000:39000"
+-    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/hispeed_freq 1248000
+-    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/go_hispeed_load 89
+-    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/target_loads "80 1040000:81 1352000:87 1664000:90"
+-    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/above_hispeed_delay "59000 1248000:79000 1664000:19000"
++    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/target_loads "75 1053000:80 1248000:85 1456000:90"
++    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/above_hispeed_delay "19000 1248000:39000"
++    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/hispeed_freq 1261000
++    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/go_hispeed_load 85
++    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/target_loads "80 1066000:81 1469000:87 1703000:90"
++    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/above_hispeed_delay "19000 1469000:39000 1703000:19000"
+ 
+ # Copy DRM Key
+     copy /system/app/wv.keys /factory/wv.keys
+@@ -971,7 +971,7 @@ service umount_service /system/bin/umount -D /preload
+     seclabel u:r:umount_service:s0
+     oneshot
+ 
+-on property:sys.mobicoredaemon.enable=true
++on property:vendor.sys.mobicoredaemon.enable=true
+ 	write /proc/iccc_ready 1
+ 
+ # irisd
+@@ -988,8 +988,24 @@ service faced /system/bin/faced
+ 
+ on property:sys.boot_completed=1
+     swapon_all /vendor/etc/fstab.samsungexynos8895
+-    setprop security.semdaemonfinish 0
+-    start sem_daemon
++    write /proc/sys/vm/swappiness 100
++    write /proc/sys/vm/page-cluster 0
++    write /proc/sys/vm/stat_interval 10
++    write /proc/sys/vm/dirty_ratio 20
++    write /proc/sys/vm/dirty_background_ratio 5
++    write /proc/sys/net/core/default_qdisc fq_codel
++    write /proc/sys/net/ipv4/tcp_fastopen 3
++    write /sys/block/sda/queue/scheduler deadline
++    write /sys/block/sda/queue/iostats 0
++    write /sys/block/sda/queue/add_random 0
++    write /sys/block/sda/queue/rq_affinity 2
++    write /sys/block/sda/queue/read_ahead_kb 128
++    write /sys/block/sda/queue/nr_requests 256
++    write /sys/block/sda/queue/iosched/read_expire 150
++    write /sys/block/sda/queue/iosched/write_expire 1500
++    write /sys/block/sda/queue/iosched/fifo_batch 16
++    write /sys/block/sda/queue/iosched/writes_starved 2
++    write /sys/block/sda/queue/iosched/front_merges 0
+     # Change permission for A-Box firmware logs file & GPR dump
+     chown audioserver system /sys/kernel/debug/abox/log-00
+     chown audioserver system /sys/devices/platform/13e50000.abox/13e50000.abox:abox_debug@0/gpr
+@@ -997,9 +1013,6 @@ on property:sys.boot_completed=1
+     chown audioserver system /sys/devices/platform/13e50000.abox/13e50000.abox:abox_debug@0/calliope_dram
+     chown audioserver system /sys/devices/platform/13e50000.abox/13e50000.abox:abox_debug@0/calliope_iva
+ 
+-on property:security.semdaemonfinish=1
+-    stop sem_daemon
+-
+ # SSWAP
+ service swapon /sbin/sswap -s -f 2048
+     class core
+diff --git a/sepolicy/vendor/audioserver.te b/sepolicy/vendor/audioserver.te
+new file mode 100644
+index 0000000..dd30c00
+--- /dev/null
++++ b/sepolicy/vendor/audioserver.te
+@@ -0,0 +1 @@
++dontaudit audioserver vendor_default_prop:file r_file_perms;
+diff --git a/sepolicy/vendor/bootanim.te b/sepolicy/vendor/bootanim.te
+new file mode 100644
+index 0000000..75852e1
+--- /dev/null
++++ b/sepolicy/vendor/bootanim.te
+@@ -0,0 +1 @@
++dontaudit bootanim system_data_file:dir search;
+diff --git a/sepolicy/vendor/file.te b/sepolicy/vendor/file.te
+index aff3b6a..1340fa1 100644
+--- a/sepolicy/vendor/file.te
++++ b/sepolicy/vendor/file.te
+@@ -40,7 +40,6 @@ type sysfs_gps, fs_type, sysfs_type, mlstrustedobject;
+ type sysfs_brightness, fs_type, sysfs_type, mlstrustedobject;
+ type sysfs_virtual, fs_type, sysfs_type, mlstrustedobject;
+ type sysfs_charger, fs_type, sysfs_type, mlstrustedobject;
+-type sysfs_modem, fs_type, sysfs_type, mlstrustedobject;
+ type sysfs_lcd, fs_type, sysfs_type, mlstrustedobject;
+ type sysfs_camera, fs_type, sysfs_type, mlstrustedobject;
+ type sysfs_mmc_host_writable, sysfs_type, rw_fs_type, fs_type;
+@@ -48,3 +47,4 @@ type sysfs_ss_writable, sysfs_type, rw_fs_type, fs_type;
+ type sysfs_usb_writable, sysfs_type, rw_fs_type, fs_type;
+ type sysfs_gpu_writable, sysfs_type, rw_fs_type, fs_type;
+ type sysfs_info, sysfs_type, r_fs_type, fs_type;
++type sysfs_usb_water, fs_type, sysfs_type;
+diff --git a/sepolicy/vendor/file_contexts b/sepolicy/vendor/file_contexts
+index 2100feb..5bf5746 100644
+--- a/sepolicy/vendor/file_contexts
++++ b/sepolicy/vendor/file_contexts
+@@ -26,6 +26,9 @@
+ /dev/block/platform/11120000\.ufs/by-name/KEYREFUGE     u:object_r:keyrefuge_block_device:s0
+ /dev/block/platform/11120000\.ufs/by-name/SYSTEM        u:object_r:system_block_device:s0
+ 
++# Audio HAL
++/(vendor|system/vendor)/bin/hw/android\.hardware\.audio\.service\.universal8895 u:object_r:hal_audio_default_exec:s0
++
+ ####################################
+ # efs files
+ /efs/FactoryApp(/.*)?          u:object_r:app_efs_file:s0
+@@ -35,6 +38,7 @@
+ /efs/FactoryApp/hist_nv        u:object_r:radio_factoryapp_efs_file:s0
+ /efs/FactoryApp/test_nv        u:object_r:radio_factoryapp_efs_file:s0
+ /efs/FactoryApp/gyro_cal_data  u:object_r:sensor_factoryapp_efs_file:s0
++/efs/FactoryApp/mag_cal_param  u:object_r:sensor_factoryapp_efs_file:s0
+ 
+ /efs/nv_data.bin(.*)           u:object_r:bin_nv_data_efs_file:s0
+ /efs/nv.log                    u:object_r:bin_nv_data_efs_file:s0
+@@ -78,6 +82,9 @@
+ 
+ # virtual
+ /sys/devices/virtual(/.*)?                       u:object_r:sysfs_virtual:s0
++/sys/devices/virtual/sec/ccic/water              u:object_r:sysfs_usb_water:s0
++/sys/devices/virtual/sec/sec_key(/.*)?           u:object_r:sysfs_sec_key:s0
++/sys/devices/virtual/sec/switch/afc_disable      u:object_r:sysfs_sec_switch_writable:s0
+ 
+ # iio
+ /sys/devices/platform/15b70000\.adc/iio:device[0-9](/.*)?                                       u:object_r:sysfs_iio:s0
+@@ -119,9 +126,6 @@
+ /sys/devices/platform/panel_drv@001/lcd/panel/temperature                                       u:object_r:sysfs_lcd:s0
+ /sys/devices/platform/panel_drv@001/lcd/panel/window_type                                       u:object_r:sysfs_lcd:s0
+ 
+-# modem
+-/sys/module/modem_ctrl_ss310ap/parameters/ds_detect                                             u:object_r:sysfs_modem:s0
+-
+ # ZRAM
+ /sys/devices/virtual/block/zram0/mm_stat                                                        u:object_r:sysfs_zram:s0
+ 
+diff --git a/sepolicy/vendor/fsck.te b/sepolicy/vendor/fsck.te
+index db70868..e31506a 100644
+--- a/sepolicy/vendor/fsck.te
++++ b/sepolicy/vendor/fsck.te
+@@ -2,3 +2,4 @@ allow fsck cache_file:dir getattr;
+ allow fsck sysfs_battery:dir search;
+ allow fsck tmpfs:blk_file getattr;
+ allow fsck efs_block_device:blk_file rw_file_perms;
++allow fsck cpefs_block_device:blk_file rw_file_perms;
+diff --git a/sepolicy/vendor/genfs_contexts b/sepolicy/vendor/genfs_contexts
+index c51ca88..d62cf87 100644
+--- a/sepolicy/vendor/genfs_contexts
++++ b/sepolicy/vendor/genfs_contexts
+@@ -80,3 +80,7 @@ genfscon sysfs /firmware/devicetree/base/model_info-system_rev u:object_r:sysfs_
+ genfscon sysfs /kernel/gpu/                    u:object_r:sysfs_gpu:s0
+ genfscon sysfs /kernel/gpu/gpu_max_clock       u:object_r:sysfs_gpu_writable:s0
+ genfscon sysfs /kernel/gpu/gpu_min_clock       u:object_r:sysfs_gpu_writable:s0
++genfscon sysfs /devices/virtual/sec/tsp/input                 u:object_r:sysfs_input:s0
++genfscon sysfs /devices/virtual/sec/ccic/water                u:object_r:sysfs_usb_water:s0
++genfscon sysfs /kernel/hmp                                    u:object_r:sysfs_power_writable:s0
++genfscon sysfs /kernel/mm/vmscan/mem_boost_mode               u:object_r:sysfs_camera_writable:s0
+diff --git a/sepolicy/vendor/gmscore_app.te b/sepolicy/vendor/gmscore_app.te
+new file mode 100644
+index 0000000..7d3c19f
+--- /dev/null
++++ b/sepolicy/vendor/gmscore_app.te
+@@ -0,0 +1,2 @@
++allow gmscore_app sysfs_virtual:file r_file_perms;
++get_prop(gmscore_app, vendor_pihooks_prop)
+diff --git a/sepolicy/vendor/gpsd.te b/sepolicy/vendor/gpsd.te
+new file mode 100644
+index 0000000..9f62783
+--- /dev/null
++++ b/sepolicy/vendor/gpsd.te
+@@ -0,0 +1,8 @@
++allow gpsd hal_system_suspend_service:service_manager find;
++get_prop(gpsd, vendor_gps_prop)
++dontaudit gpsd system_data_file:dir search;
++binder_call(gpsd, servicemanager)
++binder_call(servicemanager, gpsd)
++allow servicemanager gpsd:dir search;
++allow servicemanager gpsd:file { read open };
++allow servicemanager gpsd:process getattr;
+diff --git a/sepolicy/vendor/hal_bluetooth_default.te b/sepolicy/vendor/hal_bluetooth_default.te
+index 0f0af54..1f83180 100644
+--- a/sepolicy/vendor/hal_bluetooth_default.te
++++ b/sepolicy/vendor/hal_bluetooth_default.te
+@@ -1,2 +1,2 @@
+-allow hal_bluetooth_default vendor_default_prop:property_service set;
++set_prop(hal_bluetooth_default, vendor_bluetooth_fw_version_prop)
+ allow hal_bluetooth_default vendor_firmware_file:dir r_dir_perms;
+diff --git a/sepolicy/vendor/hal_camera_default.te b/sepolicy/vendor/hal_camera_default.te
+index 313e7bc..6ae8c9e 100644
+--- a/sepolicy/vendor/hal_camera_default.te
++++ b/sepolicy/vendor/hal_camera_default.te
+@@ -7,9 +7,11 @@ allow hal_camera_default sysfs_virtual:dir search;
+ allow hal_camera_default sysfs_virtual:file rw_file_perms;
+ allow hal_camera_default sysfs_camera:dir search;
+ allow hal_camera_default sysfs_camera:file rw_file_perms;
++allow hal_camera_default sysfs_camera_writable:file rw_file_perms;
+ allow hal_camera_default camera_data_file:dir search;
+ 
+ get_prop(hal_camera_default, exported_camera_prop)
+ 
+ binder_call(hal_camera_default, system_server)
+ binder_call(system_server, hal_camera_default)
++dontaudit hal_camera_default default_prop:file r_file_perms;
+diff --git a/sepolicy/vendor/hal_fingerprint_default.te b/sepolicy/vendor/hal_fingerprint_default.te
+index 7a5a796..4530684 100644
+--- a/sepolicy/vendor/hal_fingerprint_default.te
++++ b/sepolicy/vendor/hal_fingerprint_default.te
+@@ -2,3 +2,5 @@ allow hal_fingerprint_default fingerprintd_data_file:dir write;
+ allow hal_fingerprint_default fingerprint_device:chr_file rw_file_perms;
+ allow hal_fingerprint_default sysfs_virtual:dir search;
+ allow hal_fingerprint_default sysfs_virtual:file r_file_perms;
++allow hal_fingerprint_default uhid_device:chr_file rw_file_perms;
++dontaudit hal_fingerprint_default default_prop:file r_file_perms;
+diff --git a/sepolicy/vendor/hal_lineage_fastcharge_default.te b/sepolicy/vendor/hal_lineage_fastcharge_default.te
+new file mode 100644
+index 0000000..875aa4c
+--- /dev/null
++++ b/sepolicy/vendor/hal_lineage_fastcharge_default.te
+@@ -0,0 +1 @@
++allow hal_lineage_fastcharge_default sysfs_virtual:dir r_dir_perms;
+diff --git a/sepolicy/vendor/hal_power_default.te b/sepolicy/vendor/hal_power_default.te
+index dbc59b0..8a817ed 100644
+--- a/sepolicy/vendor/hal_power_default.te
++++ b/sepolicy/vendor/hal_power_default.te
+@@ -5,3 +5,9 @@ allow hal_power_default sysfs_virtual:file r_file_perms;
+ allow hal_power_default sysfs_spi_writeable:dir r_dir_perms;
+ allow hal_power_default sysfs_spi_writeable:file rw_file_perms;
+ allow hal_power_default sysfs_touchscreen_writable:dir r_dir_perms;
++set_prop(hal_power_default, vendor_powerhal_state_prop)
++allow hal_power_default sysfs_gpu_writable:file { open write };
++allow hal_power_default sysfs_input:lnk_file read;
++allow hal_power_default sysfs_decon:dir r_dir_perms;
++allow hal_power_default sysfs_decon:file r_file_perms;
++allow hal_power_default sysfs_virtual:lnk_file read;
+diff --git a/sepolicy/vendor/hal_sensors_default.te b/sepolicy/vendor/hal_sensors_default.te
+index ac1475d..a3bf3ff 100644
+--- a/sepolicy/vendor/hal_sensors_default.te
++++ b/sepolicy/vendor/hal_sensors_default.te
+@@ -5,5 +5,6 @@ allow hal_sensors_default sysfs_virtual:file rw_file_perms;
+ allow hal_sensors_default sysfs_virtual:lnk_file read;
+ allow hal_sensors_default sysfs_lcd:file r_file_perms;
+ allow hal_sensors_default baro_delta_factoryapp_efs_file:file r_file_perms;
++allow hal_sensors_default sensor_factoryapp_efs_file:file rw_file_perms;
+ allow hal_sensors_default sysfs_input:file read;
+ allow hal_sensors_default sysfs_spi_writeable:file rw_file_perms;
+diff --git a/sepolicy/vendor/hal_usb_default.te b/sepolicy/vendor/hal_usb_default.te
+new file mode 100644
+index 0000000..80c381b
+--- /dev/null
++++ b/sepolicy/vendor/hal_usb_default.te
+@@ -0,0 +1,3 @@
++allow hal_usb_default sysfs_virtual:dir search;
++allow hal_usb_default sysfs_virtual:file r_file_perms;
++allow hal_usb_default sysfs_usb_water:file r_file_perms;
+diff --git a/sepolicy/vendor/init.te b/sepolicy/vendor/init.te
+index 531b33e..00fbd80 100644
+--- a/sepolicy/vendor/init.te
++++ b/sepolicy/vendor/init.te
+@@ -24,11 +24,10 @@ allow init sysfs_charger:file setattr;
+ allow init sysfs_input:file setattr;
+ allow init sysfs_lcd:file setattr;
+ allow init sysfs_mdnie:file setattr;
+-allow init sysfs_modem:file w_file_perms;
+ allow init sysfs_battery_writable:file setattr;
+ allow init sysfs_mmc_host_writable:file setattr;
+-allow init sysfs_scsi_host_writable:file setattr;
+-allow init sysfs_power_writable:file setattr;
++allow init sysfs_scsi_host_writable:file { open write setattr };
++allow init sysfs_power_writable:file { open write setattr };
+ allow init sysfs_bt_writable:file setattr;
+ allow init sysfs_graphics:file create_file_perms;
+ allow init sysfs_touchscreen_writable:file setattr;
+diff --git a/sepolicy/vendor/kernel.te b/sepolicy/vendor/kernel.te
+index a544b68..3dfd7aa 100644
+--- a/sepolicy/vendor/kernel.te
++++ b/sepolicy/vendor/kernel.te
+@@ -1,8 +1,13 @@
+ allow kernel app_efs_file:dir search;
+ allow kernel app_efs_file:file open;
+-allow kernel sensor_factoryapp_efs_file:file open;
++allow kernel sensor_factoryapp_efs_file:file rw_file_perms;
+ allow kernel efs_file:dir search;
+ 
+ allow kernel device:chr_file { getattr setattr unlink create };
+ allow kernel device:dir create_dir_perms;
+ allow kernel self:capability { mknod };
++allow kernel sysfs_virtual:dir search;
++allow kernel sysfs_sec_key:dir search;
++allow kernel sysfs_sec_key:file r_file_perms;
++allow kernel sysfs_virtual:file r_file_perms;
++allow kernel app_efs_file:file r_file_perms;
+diff --git a/sepolicy/vendor/lhd.te b/sepolicy/vendor/lhd.te
+index b959cf7..d67018c 100644
+--- a/sepolicy/vendor/lhd.te
++++ b/sepolicy/vendor/lhd.te
+@@ -2,3 +2,13 @@ allow lhd sysfs_virtual:dir search;
+ allow lhd sysfs_virtual:file rw_file_perms;
+ allow lhd sysfs_virtual:lnk_file read;
+ allow lhd efs_file:dir search;
++allow lhd hal_system_suspend_service:service_manager find;
++allow lhd netd:unix_stream_socket connectto;
++allow netd lhd:fd use;
++allow netd lhd:tcp_socket { read write getattr setattr getopt setopt };
++dontaudit lhd system_data_file:dir search;
++binder_call(lhd, servicemanager)
++binder_call(servicemanager, lhd)
++allow servicemanager lhd:dir search;
++allow servicemanager lhd:file { read open };
++allow servicemanager lhd:process getattr;
+diff --git a/sepolicy/vendor/property.te b/sepolicy/vendor/property.te
+index 99ad75c..0a12df0 100644
+--- a/sepolicy/vendor/property.te
++++ b/sepolicy/vendor/property.te
+@@ -1,11 +1,11 @@
+-# modemloader
+-type modemloader_prop, property_type;
+-
+-type persist_rmnet_prop, property_type;
+-type persist_data_df_prop, property_type;
+-type persist_data_wda_prop, property_type;
+-
+-type vendor_camera_prop, property_type;
+-type vendor_factory_prop, property_type;
+-type vendor_gps_prop, property_type;
+-type vendor_nfc_prop, property_type;
++vendor_internal_prop(modemloader_prop)
++vendor_internal_prop(persist_data_df_prop)
++vendor_internal_prop(persist_data_wda_prop)
++vendor_internal_prop(persist_rmnet_prop)
++vendor_internal_prop(vendor_bluetooth_fw_version_prop)
++vendor_internal_prop(vendor_camera_prop)
++vendor_internal_prop(vendor_factory_prop)
++vendor_internal_prop(vendor_gps_prop)
++vendor_internal_prop(vendor_nfc_prop)
++vendor_internal_prop(vendor_powerhal_state_prop)
++vendor_public_prop(vendor_pihooks_prop)
+diff --git a/sepolicy/vendor/property_contexts b/sepolicy/vendor/property_contexts
+index 19182c5..d57d38a 100644
+--- a/sepolicy/vendor/property_contexts
++++ b/sepolicy/vendor/property_contexts
+@@ -1,4 +1,5 @@
+ # bluetooth
++vendor.bluetooth_fw_ver     u:object_r:vendor_bluetooth_fw_version_prop:s0 exact string
+ persist.bluetooth_fw_ver    u:object_r:bluetooth_prop:s0
+ ro.bluetooth.tty            u:object_r:bluetooth_prop:s0
+ wc_transport.               u:object_r:bluetooth_prop:s0
+@@ -28,3 +29,10 @@ vendor.gsm.                 u:object_r:vendor_radio_prop:s0
+ 
+ # FACTORY
+ ro.factory.factory_binary   u:object_r:vendor_factory_prop:s0
++
++# PowerHAL
++vendor.powerhal.            u:object_r:vendor_powerhal_state_prop:s0
++
++# Play Integrity Hooks
++persist.vendor.pihooks.     u:object_r:vendor_pihooks_prop:s0
++ro.vendor.pihooks.          u:object_r:vendor_pihooks_prop:s0
+diff --git a/sepolicy/vendor/rild.te b/sepolicy/vendor/rild.te
+index eef06d8..f51dce8 100644
+--- a/sepolicy/vendor/rild.te
++++ b/sepolicy/vendor/rild.te
+@@ -25,6 +25,7 @@ allow rild hal_audio_default:dir search;
+ allow rild hal_audio_default:file r_file_perms;
+ 
+ # hwservice
+-allow rild hal_sec_radio_hwservice:hwservice_manager add;
+-allow rild hal_sec_radio_bridge_hwservice:hwservice_manager add;
+-allow rild hal_sec_radio_channel_hwservice:hwservice_manager add;
++add_hwservice(rild, hal_sec_radio_hwservice)
++add_hwservice(rild, hal_sec_radio_bridge_hwservice)
++add_hwservice(rild, hal_sec_radio_channel_hwservice)
++dontaudit rild default_prop:file r_file_perms;
+diff --git a/sepolicy/vendor/secril_config_svc.te b/sepolicy/vendor/secril_config_svc.te
+new file mode 100644
+index 0000000..111c9b9
+--- /dev/null
++++ b/sepolicy/vendor/secril_config_svc.te
+@@ -0,0 +1,2 @@
++allow secril_config_svc factoryprop_efs_file:file r_file_perms;
++dontaudit secril_config_svc default_prop:property_service set;
+diff --git a/sepolicy/vendor/shell.te b/sepolicy/vendor/shell.te
+new file mode 100644
+index 0000000..41e6782
+--- /dev/null
++++ b/sepolicy/vendor/shell.te
+@@ -0,0 +1,2 @@
++allow shell sysfs_virtual:file r_file_perms;
++allow shell sysfs_modem:file r_file_perms;
+diff --git a/sepolicy/vendor/surfaceflinger.te b/sepolicy/vendor/surfaceflinger.te
+index 04ef544..e5ebd2c 100644
+--- a/sepolicy/vendor/surfaceflinger.te
++++ b/sepolicy/vendor/surfaceflinger.te
+@@ -1,2 +1,3 @@
+ # /dev/mali0
+ allow surfaceflinger gpu_device:chr_file rw_file_perms;
++get_prop(surfaceflinger, vendor_hwc_prop)
+diff --git a/sepolicy/vendor/system_app.te b/sepolicy/vendor/system_app.te
+index 373b1cc..c8dd538 100644
+--- a/sepolicy/vendor/system_app.te
++++ b/sepolicy/vendor/system_app.te
+@@ -3,3 +3,5 @@ allow system_app gpu_device:chr_file rw_file_perms;
+ 
+ allow system_app proc_pagetypeinfo:file r_file_perms;
+ allow system_app sysfs_virtual:dir search;
++allow system_app sysfs_zram:file r_file_perms;
++get_prop(system_app, vendor_pihooks_prop)
+diff --git a/sepolicy/vendor/system_server.te b/sepolicy/vendor/system_server.te
+index e771758..d41548c 100644
+--- a/sepolicy/vendor/system_server.te
++++ b/sepolicy/vendor/system_server.te
+@@ -8,5 +8,4 @@ allow system_server debugfs_ion:file r_file_perms;
+ allow system_server debugfs_mali_mem:file r_file_perms;
+ 
+ allow system_server frp_block_device:blk_file rw_file_perms;
+-
+ get_prop(system_server, vendor_radio_prop)
+diff --git a/sepolicy/vendor/vendor_init.te b/sepolicy/vendor/vendor_init.te
+new file mode 100644
+index 0000000..8739b0b
+--- /dev/null
++++ b/sepolicy/vendor/vendor_init.te
+@@ -0,0 +1,13 @@
++# The vendor baseband init script configures the modem for one or two SIM slots.
++allow vendor_init sysfs_sim_writable:file { open write };
++allow vendor_init sysfs_power_writable:file { open write setattr };
++allow vendor_init sysfs_scsi_host_writable:file { open write setattr };
++allow vendor_init proc_swapiness:file { open write };
++allow vendor_init sysfs_devices_system_cpu:file { open write setattr };
++allow vendor_init sysfs_zram:file { open write };
++set_prop(vendor_init, vendor_powerhal_state_prop)
++allow vendor_init cgroup:file r_file_perms;
++dontaudit vendor_init default_prop:property_service set;
++allow vendor_init proc_dirty:file { open write };
++allow vendor_init proc:file { open write };
++set_prop(vendor_init, vendor_pihooks_prop)
+diff --git a/sepolicy/vendor/vold.te b/sepolicy/vendor/vold.te
+index 0d68e6f..3733505 100644
+--- a/sepolicy/vendor/vold.te
++++ b/sepolicy/vendor/vold.te
+@@ -4,3 +4,4 @@ allow vold efs_file:dir r_dir_perms;
+ allow vold sysfs_mmc_host_writable:file write;
+ allow vold sysfs_scsi_host_writable:file write;
+ allow vold sysfs_virtual:file write;
++dontaudit vold hal_bootctl_hwservice:hwservice_manager find;
+diff --git a/system.prop b/system.prop
+index 0fec390..bf254a5 100644
+--- a/system.prop
++++ b/system.prop
+@@ -19,6 +19,7 @@ bluetooth.profile.sap.server.enabled?=true
+ ro.lmk.log_stats=true
+ ro.lmk.use_minfree_levels=true
+ ro.lmk.use_psi=false
++ro.lmk.kill_heaviest_task=true
+ 
+ # Keystore
+ ro.arch=exynos8895
+@@ -26,7 +27,7 @@ ro.hardware.keystore=mdfpp
+ 
+ # Media
+ debug.stagefright.ccodec=0
+-ro.config.systemaudiodebug=abox&codecdsp
++# Media audio debug disabled for daily release
+ 
+ # Factory Reset Protection
+ ro.frp.pst=/dev/block/persistent
+@@ -64,8 +65,3 @@ ro.vndk.version=24
+ # SoC
+ ro.soc.manufacturer=Samsung
+ ro.soc.model=Exynos 8895
+-
+-# zram
+-ro.zram.mark_idle_delay_mins=60
+-ro.zram.first_wb_delay_mins=1440
+-ro.zram.periodic_wb_delay_hours=24

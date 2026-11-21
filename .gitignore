@@ -1,0 +1,6 @@
+.DS_Store
+*.zip
+*.img
+*.Image
+*.pk8
+__pycache__/

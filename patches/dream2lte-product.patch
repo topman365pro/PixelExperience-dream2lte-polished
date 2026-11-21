@@ -1,0 +1,46 @@
+diff --git a/AndroidProducts.mk b/AndroidProducts.mk
+index 6b51892..57744ec 100644
+--- a/AndroidProducts.mk
++++ b/AndroidProducts.mk
+@@ -14,4 +14,8 @@
+ # limitations under the License.
+ 
+ PRODUCT_MAKEFILES := \
+-    $(LOCAL_DIR)/lineage_dream2lte.mk
++    $(LOCAL_DIR)/aosp_dream2lte.mk
++
++COMMON_LUNCH_CHOICES := \
++    aosp_dream2lte-user \
++    aosp_dream2lte-userdebug
+diff --git a/lineage_dream2lte.mk b/aosp_dream2lte.mk
+similarity index 73%
+rename from lineage_dream2lte.mk
+rename to aosp_dream2lte.mk
+index 3c6e81e..95e65c5 100644
+--- a/lineage_dream2lte.mk
++++ b/aosp_dream2lte.mk
+@@ -22,21 +22,14 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base.mk)
+ $(call inherit-product, device/samsung/dream2lte/device.mk)
+ $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
+ 
+-# Inherit some common Lineage stuff.
+-$(call inherit-product, vendor/lineage/config/common_full_phone.mk)
++# PixelExperience phone configuration.
++$(call inherit-product, vendor/aosp/config/common_full_phone.mk)
+ 
+ # Device identifier. This must come after all inclusions
+ PRODUCT_DEVICE := dream2lte
+-PRODUCT_NAME := lineage_dream2lte
++PRODUCT_NAME := aosp_dream2lte
+ PRODUCT_BRAND := samsung
+ PRODUCT_MODEL := SM-G955F
+ PRODUCT_MANUFACTURER := samsung
+ 
+ PRODUCT_GMS_CLIENTID_BASE := android-samsung
+-
+-# Use the latest approved GMS identifiers
+-PRODUCT_BUILD_PROP_OVERRIDES += \
+-    PRODUCT_NAME=dream2ltexx \
+-    PRIVATE_BUILD_DESC="dream2ltexx-user 8.0.0 R16NW G955FXXU1CRC7 release-keys"
+-
+-BUILD_FINGERPRINT := samsung/dream2ltexx/dream2lte:8.0.0/R16NW/G955FXXU1CRC7:user/release-keys

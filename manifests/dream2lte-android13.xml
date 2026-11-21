@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <remove-project name="external_faceunlock" />
+  <remove-project name="vendor_gms" />
+  <remote name="gitlab-public" fetch="https://gitlab.com/" />
+  <!-- All eight installed ARM64 face-unlock libraries match the supplied ROM. -->
+  <project name="pixelos-aosp/external_faceunlock" path="external/faceunlock" remote="gitlab-public" revision="cd8cfdecdfbacbf40c42968863c7525025765e55" upstream="refs/heads/thirteen" clone-depth="1" />
+  <!-- The original host is offline. The core APKs match the supplied ROM. -->
+  <project name="akshatleo9456/android_vendor_gms" path="vendor/gms" remote="gitlab-public" revision="653a8a98712cbd888f3535d683520b2280047488" upstream="refs/heads/thirteen" clone-depth="1" />
+
+  <!-- Device, kernel and BSP candidates derived from ivanmeler/local_manifests android-13. -->
+  <project name="8890q/android_device_samsung_dream2lte" path="device/samsung/dream2lte" remote="github" revision="61da3464216c25d67eb76aec3f2939d7196044fd" upstream="refs/heads/lineage-20.0" />
+  <project name="8890q/android_device_samsung_universal8895-common" path="device/samsung/universal8895-common" remote="github" revision="6c9817895e9fd0f61280ea9ad59ddf7e17678c5a" upstream="refs/heads/lineage-20.0" />
+  <project name="8890q/android_kernel_samsung_universal8895" path="kernel/samsung/universal8895" remote="github" revision="051e33145011bd3e97d9c09700a763b837961904" upstream="refs/heads/lineage-20.0" />
+  <project name="8890q/proprietary_vendor_samsung" path="vendor/samsung" remote="github" revision="5e486263bb76a0be22ab05832782a19263301c47" upstream="refs/heads/lineage-20.0" />
+  <project name="LineageOS/android_device_samsung_slsi_sepolicy" path="device/samsung_slsi/sepolicy" remote="github" revision="52e4e8929d4c0c14a213b09c448d09717940c091" upstream="refs/heads/lineage-20" />
+  <project name="LineageOS/android_hardware_samsung" path="hardware/samsung" remote="github" revision="4eebf50208d478923c9eedf7e420d8bf64663150" upstream="refs/heads/lineage-20" />
+  <project name="8890q/android_hardware_samsung_slsi-linaro_config" path="hardware/samsung_slsi-linaro/config" remote="github" revision="99f70404432d35b38eef86d29a68858ae55559b1" upstream="refs/heads/lineage-20" />
+  <project name="8890q/android_hardware_samsung_slsi-linaro_exynos" path="hardware/samsung_slsi-linaro/exynos" remote="github" revision="c04e384bc671c8aa490dfb031af5fc5551490b28" upstream="refs/heads/lineage-20" />
+  <project name="8890q/android_hardware_samsung_slsi-linaro_exynos5" path="hardware/samsung_slsi-linaro/exynos5" remote="github" revision="dd2f9115c2fcb8767a9766da898f06b657872997" upstream="refs/heads/lineage-20" />
+  <project name="8890q/android_hardware_samsung_slsi-linaro_graphics" path="hardware/samsung_slsi-linaro/graphics" remote="github" revision="f3c1bbe6faad3d3008e83b36244e74a34e6cadc1" upstream="refs/heads/lineage-20" />
+  <project name="8890q/android_hardware_samsung_slsi-linaro_openmax" path="hardware/samsung_slsi-linaro/openmax" remote="github" revision="509019f59bf3de7633e0914718a7d001fd84888d" upstream="refs/heads/lineage-20" />
+</manifest>

@@ -1,0 +1,39 @@
+diff --git a/ril/secril_config_svc/secril_config_svc.cpp b/ril/secril_config_svc/secril_config_svc.cpp
+--- a/ril/secril_config_svc/secril_config_svc.cpp
++++ b/ril/secril_config_svc/secril_config_svc.cpp
+@@ -28,16 +28,25 @@
+ #define FACTORY_PROP "factory.prop"
+ #define TELEPHONY_PROP "telephony.prop"
+ 
+-void LoadProperties(std::string data) {
+-    for (std::string line : android::base::Split(data, "\n")) {
+-        if (line == "\0") break;
++void LoadProperties(const std::string& data) {
++    for (const auto& entry : android::base::Split(data, "\n")) {
++        const auto line = android::base::Trim(entry);
++        if (line.empty() || line.front() == '#') {
++            continue;
++        }
+ 
+-        std::vector<std::string> parts = android::base::Split(line, "=");
+-        if (parts.size() == 2) {
+-            LOG(INFO) << "Setting property: " << line;
+-            android::base::SetProperty(parts.at(0), parts.at(1));
+-        } else {
+-            LOG(ERROR) << "Invalid data: " << line;
++        const auto separator = line.find('=');
++        if (separator == std::string::npos) {
++            LOG(WARNING) << "Ignoring malformed radio property";
++            continue;
++        }
++
++        const auto key = android::base::Trim(line.substr(0, separator));
++        const auto value = line.substr(separator + 1);
++        if (key.empty()) {
++            LOG(WARNING) << "Ignoring radio property with an empty name";
++        } else if (!android::base::SetProperty(key, value)) {
++            LOG(WARNING) << "Could not set radio property " << key;
+         }
+     }
+ }
+ 

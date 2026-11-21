@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <extend-project name="platform/prebuilts/rust" path="prebuilts/rust">
+    <sparse-path path="bootstrap" />
+    <sparse-path path="linux-x86" />
+    <sparse-path path="soong" />
+    <sparse-path path="tests" />
+  </extend-project>
+</manifest>

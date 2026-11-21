@@ -1,0 +1,550 @@
+--- a/arch/arm64/configs/exynos8895-dream2lte_defconfig
++++ b/arch/arm64/configs/exynos8895-dream2lte_defconfig
+@@ -50,7 +50,7 @@
+ CONFIG_CROSS_MEMORY_ATTACH=y
+ # CONFIG_FHANDLE is not set
+ CONFIG_USELIB=y
+-# CONFIG_AUDIT is not set
++CONFIG_AUDIT=y
+ CONFIG_HAVE_ARCH_AUDITSYSCALL=y
+ 
+ #
+@@ -573,7 +573,7 @@
+ CONFIG_PM_OPP=y
+ CONFIG_PM_CLK=y
+ CONFIG_PM_GENERIC_DOMAINS=y
+-# CONFIG_WQ_POWER_EFFICIENT_DEFAULT is not set
++CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y
+ CONFIG_PM_GENERIC_DOMAINS_SLEEP=y
+ CONFIG_PM_GENERIC_DOMAINS_OF=y
+ CONFIG_CPU_PM=y
+@@ -705,12 +705,12 @@
+ # CONFIG_TCP_CONG_ILLINOIS is not set
+ # CONFIG_TCP_CONG_DCTCP is not set
+ # CONFIG_TCP_CONG_CDG is not set
+-CONFIG_DEFAULT_BIC=y
++# CONFIG_DEFAULT_BIC is not set
+ # CONFIG_DEFAULT_CUBIC is not set
+ # CONFIG_DEFAULT_HTCP is not set
+-# CONFIG_DEFAULT_WESTWOOD is not set
++CONFIG_DEFAULT_WESTWOOD=y
+ # CONFIG_DEFAULT_RENO is not set
+-CONFIG_DEFAULT_TCP_CONG="bic"
++CONFIG_DEFAULT_TCP_CONG="westwood"
+ # CONFIG_TCP_MD5SIG is not set
+ CONFIG_IPV6=y
+ CONFIG_IPV6_ROUTER_PREF=y
+@@ -5229,7 +5229,7 @@
+ CONFIG_HARDENED_USERCOPY=y
+ # CONFIG_HARDENED_USERCOPY_PAGESPAN is not set
+ CONFIG_SECURITY_SELINUX=y
+-CONFIG_ALWAYS_PERMISSIVE=y
++# CONFIG_ALWAYS_PERMISSIVE is not set
+ # CONFIG_SECURITY_SELINUX_BOOTPARAM is not set
+ # CONFIG_SECURITY_SELINUX_DISABLE is not set
+ CONFIG_SECURITY_SELINUX_DEVELOP=y
+--- a/crypto/testmgr.c
++++ b/crypto/testmgr.c
+@@ -4079,8 +4079,6 @@
+ {
+ #ifdef CONFIG_CRYPTO_FIPS
+ 	crypto_init_proc(&IN_FIPS_ERROR);
+-#else
+-	crypto_init_proc();
+ #endif
+ 	return 0;
+ }
+--- a/drivers/gpu/arm/b_r16p0/platform/exynos/gpu_dvfs_api.c
++++ b/drivers/gpu/arm/b_r16p0/platform/exynos/gpu_dvfs_api.c
+@@ -44,8 +44,7 @@
+ 
+ 	GPU_LOG(DVFS_DEBUG, DUMMY, 0u, 0u, "clock: %d, min: %d, max: %d\n", clock, platform->min_lock, platform->max_lock);
+ 
+-	if ((platform->min_lock > 0) && (platform->power_status) &&
+-			((target_clock < platform->min_lock) || (platform->cur_clock < platform->min_lock)))
++	if (platform->power_status && target_clock < platform->min_lock)
+ 		target_clock = platform->min_lock;
+ 
+ 	if ((platform->max_lock > 0) && (target_clock > platform->max_lock))
+@@ -323,8 +322,9 @@
+ 
+ 		spin_unlock_irqrestore(&platform->gpu_dvfs_spinlock, flags);
+ 
+-		if ((platform->min_lock > 0) && (platform->cur_clock < platform->min_lock)
+-						&& (platform->min_lock <= platform->max_lock))
++		/* A zero max lock means there is no active upper lock. */
++		if (platform->min_lock > 0 && platform->cur_clock < platform->min_lock &&
++		    (!platform->max_lock || platform->min_lock <= platform->max_lock))
+ 			gpu_set_target_clk_vol(platform->min_lock, false);
+ 
+ 		GPU_LOG(DVFS_DEBUG, LSI_GPU_MIN_LOCK, lock_type, clock,
+--- a/include/linux/cgroup-defs.h
++++ b/include/linux/cgroup-defs.h
+@@ -24,6 +24,7 @@
+ struct cgroup_root;
+ struct cgroup_subsys;
+ struct cgroup_taskset;
++struct cred;
+ struct kernfs_node;
+ struct kernfs_ops;
+ struct kernfs_open_file;
+@@ -451,8 +452,7 @@
+ 	void (*css_released)(struct cgroup_subsys_state *css);
+ 	void (*css_free)(struct cgroup_subsys_state *css);
+ 	void (*css_reset)(struct cgroup_subsys_state *css);
+-	int (*allow_attach)(struct cgroup_subsys_state *css,
+-			    struct cgroup_taskset *tset);
++	int (*allow_attach)(struct task_struct *task, const struct cred *tcred);
+ 	int (*can_attach)(struct cgroup_taskset *tset);
+ 	void (*cancel_attach)(struct cgroup_taskset *tset);
+ 	void (*attach)(struct cgroup_taskset *tset);
+--- a/include/linux/cgroup.h
++++ b/include/linux/cgroup.h
+@@ -647,8 +647,7 @@
+  * running as root.
+  * Returns 0 if this is allowed, or -EACCES otherwise.
+  */
+-int subsys_cgroup_allow_attach(struct cgroup_subsys_state *css,
+-			       struct cgroup_taskset *tset);
++int subsys_cgroup_allow_attach(struct task_struct *task, const struct cred *tcred);
+ 
+ 
+ #else /* !CONFIG_CGROUPS */
+@@ -681,8 +680,8 @@
+ static inline void cgroup_init_kthreadd(void) {}
+ static inline void cgroup_kthread_ready(void) {}
+ 
+-static inline int subsys_cgroup_allow_attach(struct cgroup_subsys_state *css,
+-					     struct cgroup_taskset *tset)
++static inline int subsys_cgroup_allow_attach(struct task_struct *task,
++					     const struct cred *tcred)
+ {
+ 	return 0;
+ }
+--- a/kernel/cgroup.c
++++ b/kernel/cgroup.c
+@@ -2848,26 +2848,19 @@
+ 	return ret;
+ }
+ 
+-int subsys_cgroup_allow_attach(struct cgroup_subsys_state *css, struct cgroup_taskset *tset)
++int subsys_cgroup_allow_attach(struct task_struct *task, const struct cred *tcred)
+ {
+-	const struct cred *cred = current_cred(), *tcred;
+-	struct task_struct *task;
+-
+-	if (capable(CAP_SYS_NICE))
+-		return 0;
+-
+-	cgroup_taskset_for_each(task, css, tset) {
+-		tcred = __task_cred(task);
++	const struct cred *cred = current_cred();
+ 
+-		if (current != task && !uid_eq(cred->euid, tcred->uid) &&
+-		    !uid_eq(cred->euid, tcred->suid))
+-			return -EACCES;
+-	}
++	if (current != task && !capable(CAP_SYS_NICE) &&
++	    !uid_eq(cred->euid, tcred->uid) && !uid_eq(cred->euid, tcred->suid))
++		return -EACCES;
+ 
+ 	return 0;
+ }
+ 
+-static int cgroup_allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
++static int cgroup_allow_attach(struct cgroup *cgrp, struct task_struct *task,
++			       const struct cred *tcred)
+ {
+ 	struct cgroup_subsys_state *css;
+ 	int i;
+@@ -2875,7 +2868,7 @@
+ 
+ 	for_each_css(css, i, cgrp) {
+ 		if (css->ss->allow_attach) {
+-			ret = css->ss->allow_attach(css, tset);
++			ret = css->ss->allow_attach(task, tcred);
+ 			if (ret)
+ 				return ret;
+ 		} else {
+@@ -2906,15 +2899,7 @@
+ 		 * if the default permission check fails, give each
+ 		 * cgroup a chance to extend the permission check
+ 		 */
+-		struct cgroup_taskset tset = {
+-			.src_csets = LIST_HEAD_INIT(tset.src_csets),
+-			.dst_csets = LIST_HEAD_INIT(tset.dst_csets),
+-			.csets = &tset.src_csets,
+-		};
+-		struct css_set *cset;
+-		cset = task_css_set(task);
+-		list_add(&cset->mg_node, &tset.src_csets);
+-		ret = cgroup_allow_attach(dst_cgrp, &tset);
++		ret = cgroup_allow_attach(dst_cgrp, task, tcred);
+ 		if (ret)
+ 			ret = -EACCES;
+ 	}
+--- a/kernel/cpuset.c
++++ b/kernel/cpuset.c
+@@ -2145,19 +2145,13 @@
+ 	task->mems_allowed = current->mems_allowed;
+ }
+ 
+-static int cpuset_allow_attach(struct cgroup_taskset *tset)
++static int cpuset_allow_attach(struct task_struct *task, const struct cred *tcred)
+ {
+-	const struct cred *cred = current_cred(), *tcred;
+-	struct task_struct *task;
+-	struct cgroup_subsys_state *css;
++	const struct cred *cred = current_cred();
+ 
+-	cgroup_taskset_for_each(task, css, tset) {
+-		tcred = __task_cred(task);
+-
+-		if ((current != task) && !capable(CAP_SYS_ADMIN) &&
+-		     cred->euid.val != tcred->uid.val && cred->euid.val != tcred->suid.val)
+-			return -EACCES;
+-	}
++	if (current != task && !capable(CAP_SYS_ADMIN) &&
++	    !uid_eq(cred->euid, tcred->uid) && !uid_eq(cred->euid, tcred->suid))
++		return -EACCES;
+ 
+ 	return 0;
+ }
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -1316,7 +1316,8 @@
+ 	struct pid_namespace *ns = file_inode(m->file)->i_sb->s_fs_info;
+ 	struct pid *pid = f->private_data;
+ 
+-	seq_put_decimal_ull(m, "Pid:\t", pid_nr_ns(pid, ns));
++	seq_puts(m, "Pid:\t");
++	seq_put_decimal_ull(m, 0, pid_nr_ns(pid, ns));
+ 	seq_putc(m, '\n');
+ }
+ #endif
+--- a/security/selinux/selinuxfs.c
++++ b/security/selinux/selinuxfs.c
+@@ -190,8 +190,6 @@
+ 	selnl_notify_setenforce(new_value);
+ 	selinux_status_update_setenforce(new_value);
+ #else
+-
+-    new_value = 0;
+ 	if (new_value != selinux_enforcing) {
+ 		length = task_has_security(current, SECURITY__SETENFORCE);
+ 		if (length)
+--- drivers/devfreq/governor_simpleinteractive.c.pass1	2022-09-20 19:52:37.000000000 +0000
++++ drivers/devfreq/governor_simpleinteractive.c	2026-11-20 16:01:39.436458993 +0000
+@@ -346,6 +346,9 @@
+ 	kthread_bind(data->change_freq_task, BOUND_CPU_NUM);
+ #endif
+ 
++	/* Park the thread in its interruptible wait loop so idle governors do not inflate loadavg. */
++	wake_up_process(data->change_freq_task);
++
+ 	return 0;
+ 
+ err2:
+--- drivers/gud/gud-exynos8895_kinibi400/MobiCoreDriver/nq.c.pass1	2022-09-20 19:52:37.000000000 +0000
++++ drivers/gud/gud-exynos8895_kinibi400/MobiCoreDriver/nq.c	2026-11-20 16:01:39.452458740 +0000
+@@ -231,8 +231,11 @@
+ {
+ 	struct notification_queue *rx = l_ctx.nq.rx;
+ 
+-	while (l_ctx.irq_bh_active) {
+-		wait_for_completion_killable(&l_ctx.irq_bh_complete);
++	while (l_ctx.irq_bh_active && !kthread_should_stop()) {
++		if (wait_for_completion_interruptible(&l_ctx.irq_bh_complete))
++			continue;
++		if (!l_ctx.irq_bh_active || kthread_should_stop())
++			break;
+ 
+ 		/* Deal with all pending notifications in one go */
+ 		while ((rx->hdr.write_cnt - rx->hdr.read_cnt) > 0) {
+@@ -655,6 +658,7 @@
+ {
+ 	free_irq(l_ctx.irq, NULL);
+ 	l_ctx.irq_bh_active = false;
++	complete(&l_ctx.irq_bh_complete);
+ 	kthread_stop(l_ctx.irq_bh_thread);
+ }
+ 
+--- drivers/gud/gud-exynos8895_kinibi400/MobiCoreDriver/scheduler.c.pass1	2022-09-20 19:52:37.000000000 +0000
++++ drivers/gud/gud-exynos8895_kinibi400/MobiCoreDriver/scheduler.c	2026-11-20 16:01:39.453458723 +0000
+@@ -140,14 +140,19 @@
+ 				    timeout_ms > DEFAULT_TIMEOUT_MS)
+ 					timeout_ms = DEFAULT_TIMEOUT_MS;
+ 
+-				if (!wait_for_completion_timeout(
++				long wret = wait_for_completion_interruptible_timeout(
+ 					&sched_ctx.idle_complete,
+-					msecs_to_jiffies(timeout_ms))) {
++					msecs_to_jiffies(timeout_ms));
++				if (wret == 0) {
+ 					if (infinite_timeout)
+ 						continue;
+ 
+ 					/* Timed out, force SWd schedule */
+ 					mc_scheduler_command(NSIQ);
++				} else if (wret < 0) {
++					if (kthread_should_stop() || !sched_ctx.thread_run)
++						break;
++					continue;
+ 				}
+ 			}
+ 			/* If multiple commands have been posted,
+--- arch/arm64/configs/exynos8895-dream2lte_defconfig	2026-11-20 10:47:33.225117191 +0000
++++ ../kernel-051e33145011bd3e97d9c09700a763b837961904/arch/arm64/configs/exynos8895-dream2lte_defconfig	2026-11-21 01:39:16.214955256 +0000
+@@ -299,11 +299,11 @@
+ # IO Schedulers
+ #
+ CONFIG_IOSCHED_NOOP=y
+-# CONFIG_IOSCHED_DEADLINE is not set
++CONFIG_IOSCHED_DEADLINE=y
+ CONFIG_IOSCHED_CFQ=y
+-CONFIG_DEFAULT_CFQ=y
++# CONFIG_DEFAULT_CFQ is not set
+ # CONFIG_DEFAULT_NOOP is not set
+-CONFIG_DEFAULT_IOSCHED="cfq"
++CONFIG_DEFAULT_IOSCHED="deadline"
+ CONFIG_UNINLINE_SPIN_UNLOCK=y
+ CONFIG_ARCH_SUPPORTS_ATOMIC_RMW=y
+ CONFIG_MUTEX_SPIN_ON_OWNER=y
+@@ -989,7 +989,7 @@
+ # CONFIG_NET_SCH_CHOKE is not set
+ # CONFIG_NET_SCH_QFQ is not set
+ # CONFIG_NET_SCH_CODEL is not set
+-# CONFIG_NET_SCH_FQ_CODEL is not set
++CONFIG_NET_SCH_FQ_CODEL=y
+ # CONFIG_NET_SCH_FQ is not set
+ # CONFIG_NET_SCH_HHF is not set
+ # CONFIG_NET_SCH_PIE is not set
+@@ -1071,7 +1071,7 @@
+ CONFIG_BT_HS=y
+ CONFIG_BT_LE=y
+ # CONFIG_BT_SELFTEST is not set
+-CONFIG_BT_DEBUGFS=y
++# CONFIG_BT_DEBUGFS is not set
+ 
+ #
+ # Bluetooth device drivers
+@@ -1439,7 +1439,7 @@
+ CONFIG_SCSI_UFSHCD_PLATFORM=y
+ CONFIG_SCSI_UFS_ASYNC_RELINK=y
+ # CONFIG_SCSI_UFS_TEST_MODE is not set
+-CONFIG_SCSI_UFS_CMD_LOGGING=y
++# CONFIG_SCSI_UFS_CMD_LOGGING is not set
+ CONFIG_SCSI_UFS_EXYNOS=y
+ # CONFIG_SCSI_HPTIOP is not set
+ # CONFIG_SCSI_SNIC is not set
+@@ -2961,8 +2961,8 @@
+ # CONFIG_MALI_TMIX_R8P0 is not set
+ # CONFIG_MALI_TMIX_R9P0 is not set
+ CONFIG_MALI_TMIX_R16P0=y
+-CONFIG_MALI_SYSTRACE_SUPPORT=y
+-CONFIG_MALI_GATOR_SUPPORT=y
++# CONFIG_MALI_SYSTRACE_SUPPORT is not set
++# CONFIG_MALI_GATOR_SUPPORT is not set
+ CONFIG_MALI_DVFS=y
+ CONFIG_MALI_PM_QOS=y
+ CONFIG_MALI_RT_PM=y
+@@ -2984,7 +2984,7 @@
+ # CONFIG_MALI_SEC_JOB_STATUS_CHECK is not set
+ CONFIG_MALI_VK_BOOST=y
+ # CONFIG_MALI_SUSTAINABLE_OPT is not set
+-CONFIG_MALI_KUTF=y
++# CONFIG_MALI_KUTF is not set
+ CONFIG_VGA_ARB=y
+ CONFIG_VGA_ARB_MAX_GPUS=16
+ # CONFIG_DRM is not set
+@@ -4319,7 +4319,7 @@
+ # DEVFREQ Drivers
+ #
+ CONFIG_ARM_EXYNOS_DEVFREQ=y
+-CONFIG_ARM_EXYNOS_DEVFREQ_DEBUG=y
++# CONFIG_ARM_EXYNOS_DEVFREQ_DEBUG is not set
+ # CONFIG_PM_DEVFREQ_EVENT is not set
+ CONFIG_ARM_EXYNOS8895_BUS_DEVFREQ=y
+ # CONFIG_EXTCON is not set
+@@ -4863,7 +4863,7 @@
+ CONFIG_F2FS_FS_XATTR=y
+ CONFIG_F2FS_FS_POSIX_ACL=y
+ CONFIG_F2FS_FS_SECURITY=y
+-CONFIG_F2FS_CHECK_FS=y
++# CONFIG_F2FS_CHECK_FS is not set
+ CONFIG_F2FS_FS_ENCRYPTION=y
+ # CONFIG_F2FS_FAULT_INJECTION is not set
+ # CONFIG_FS_DAX is not set
+@@ -5483,3 +5483,5 @@
+ CONFIG_LIBFDT=y
+ # CONFIG_SG_SPLIT is not set
+ CONFIG_ARCH_HAS_SG_CHAIN=y
++# CONFIG_AUDITSYSCALL is not set
++CONFIG_DEFAULT_DEADLINE=y
+--- arch/arm64/kernel/vdso/Makefile	2022-09-20 19:52:37.000000000 +0000
++++ ../kernel-051e33145011bd3e97d9c09700a763b837961904/arch/arm64/kernel/vdso/Makefile	2026-11-21 01:30:12.715702415 +0000
+@@ -16,8 +16,7 @@
+ 
+ ccflags-y := -shared -fno-common -fno-builtin -fno-stack-protector
+ ccflags-y += -DDISABLE_BRANCH_PROFILING -ffixed-x18
+-ccflags-y += -nostdlib -Wl,-soname=linux-vdso.so.1 \
+-		$(call cc-ldoption, -Wl$(comma)--hash-style=sysv)
++ccflags-y += -nostdlib $(call cc-ldoption, -Wl$(comma)--hash-style=sysv)
+ 
+ # Force -O2 to avoid libgcc dependencies
+ CFLAGS_REMOVE_vgettimeofday.o = -pg -Os
+@@ -71,7 +70,9 @@
+ 
+ # Actual build commands
+ quiet_cmd_vdsold = VDSOL   $@
+-      cmd_vdsold = $(CC) $(c_flags) -Wl,-n -Wl,-T $^ -o $@
++      cmd_vdsold = $(LD) $(ldflags) --nmagic --shared --nostdlib \
++		--soname=linux-vdso.so.1 -T $(filter-out FORCE,$^) \
++		$(call ld-option, --hash-style=sysv) -o $@
+ quiet_cmd_vdsocc = VDSOC   $@
+       cmd_vdsocc = ${CC} $(c_flags) -c -o $@ $<
+ quiet_cmd_vdsoas = VDSOA   $@
+--- drivers/cpufreq/cpufreq_interactive.c	2022-09-20 19:52:37.000000000 +0000
++++ ../kernel-051e33145011bd3e97d9c09700a763b837961904/drivers/cpufreq/cpufreq_interactive.c	2026-11-21 01:30:12.719702405 +0000
+@@ -1263,6 +1263,9 @@
+ 	if (ret < 0)
+ 		return ret;
+ 
++	if (!val)
++		return count;
++
+ 	tunables->boostpulse_endtime = ktime_to_us(ktime_get()) +
+ 		tunables->boostpulse_duration_val;
+ 	trace_cpufreq_interactive_boost("pulse");
+@@ -2009,6 +2012,7 @@
+ {
+ 	unsigned int i;
+ 	struct cpufreq_interactive_cpuinfo *pcpu;
++	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
+ 
+ 	/* Initalize per-cpu timers */
+ 	for_each_possible_cpu(i) {
+@@ -2032,7 +2036,9 @@
+ 	if (IS_ERR(speedchange_task))
+ 		return PTR_ERR(speedchange_task);
+ 
+-	kthread_bind(speedchange_task, 0);
++	sched_setscheduler_nocheck(speedchange_task, SCHED_FIFO, &param);
++	get_task_struct(speedchange_task);
++	wake_up_process(speedchange_task);
+ 
+ #ifdef CONFIG_ARCH_EXYNOS
+ 	pm_qos_add_notifier(PM_QOS_CLUSTER1_FREQ_MIN, &cpufreq_interactive_cluster1_min_qos_notifier);
+@@ -2053,6 +2059,8 @@
+ static void __exit cpufreq_interactive_exit(void)
+ {
+ 	cpufreq_unregister_governor(&cpufreq_gov_interactive);
++	kthread_stop(speedchange_task);
++	put_task_struct(speedchange_task);
+ }
+ 
+ module_exit(cpufreq_interactive_exit);
+--- drivers/net/wireless/bcmdhd4361/dhd.h	2022-09-20 19:52:37.000000000 +0000
++++ ../kernel-051e33145011bd3e97d9c09700a763b837961904/drivers/net/wireless/bcmdhd4361/dhd.h	2026-11-21 01:30:12.720702402 +0000
+@@ -1572,7 +1572,7 @@
+ #endif /* DHD_USE_SCAN_WAKELOCK */
+ 
+ #ifdef BCMPCIE_OOB_HOST_WAKE
+-#define OOB_WAKE_LOCK_TIMEOUT 500
++#define OOB_WAKE_LOCK_TIMEOUT 250
+ extern void dhd_os_oob_irq_wake_lock_timeout(dhd_pub_t *pub, int val);
+ extern void dhd_os_oob_irq_wake_unlock(dhd_pub_t *pub);
+ extern int dhdpcie_get_oob_irq_num(struct dhd_bus *bus);
+@@ -1580,7 +1580,7 @@
+ #define DHD_OS_OOB_IRQ_WAKE_UNLOCK(pub)			dhd_os_oob_irq_wake_unlock(pub)
+ #endif /* BCMPCIE_OOB_HOST_WAKE */
+ 
+-#define DHD_PACKET_TIMEOUT_MS	500
++#define DHD_PACKET_TIMEOUT_MS	250
+ #define DHD_EVENT_TIMEOUT_MS	1500
+ #define SCAN_WAKE_LOCK_TIMEOUT	10000
+ #define MAX_TX_TIMEOUT			500
+--- drivers/net/wireless/bcmdhd4361/Makefile	2022-09-20 19:52:37.000000000 +0000
++++ ../kernel-051e33145011bd3e97d9c09700a763b837961904/drivers/net/wireless/bcmdhd4361/Makefile	2026-11-21 01:30:12.720702402 +0000
+@@ -93,8 +93,6 @@
+ 	DHDCFLAGS += -DDONGLE_ENABLE_ISOLATION
+ 	# Enable Firmware Coredump
+ 	DHDCFLAGS += -DDHD_FW_COREDUMP
+-        # Enable PKTID AUDIT
+-        DHDCFLAGS += -DDHD_PKTID_AUDIT_ENABLED
+ 	# Enable Load Balancing support by default.
+ 	# DHD_LB_RXP - Perform RX Packet processing in parallel
+ 	# DHD_LB_STATS - To display the Load Blancing statistics
+@@ -111,8 +109,6 @@
+ endif
+ 	# PCIe interrupt affinity control interface
+ 	DHDCFLAGS += -DSET_PCIE_IRQ_CPU_CORE
+-	# ROT and Scan timeout debugging due to Kernel scheduling problem
+-	DHDCFLAGS += -DDHD_KERNEL_SCHED_DEBUG
+ endif
+ 
+ #################
+@@ -134,23 +130,13 @@
+ DHDCFLAGS += -DDEBUGFS_CFG80211
+ # Enable wakelock for legacy scan
+ DHDCFLAGS += -DDHD_USE_SCAN_WAKELOCK
+-# Enable wakelock debug function
+-DHDCFLAGS += -DDHD_TRACE_WAKE_LOCK
+ # Print out kernel panic point of file and line info when assertion happened
+ DHDCFLAGS += -DBCMASSERT_LOG
+-# Collect Current Assoc/Reject Status for Big Data logging
+-DHDCFLAGS += -DDHD_ENABLE_BIGDATA_LOGGING
+ # Enable SI utility error log
+ DHDCFLAGS += -DSI_ERROR_ENFORCE
+ 
+-# Print 8021X
+-DHDCFLAGS += -DDHD_8021X_DUMP
+ 
+-# Print DHCP
+-DHDCFLAGS += -DDHD_DHCP_DUMP
+ 
+-# Print ICMP
+-DHDCFLAGS += -DDHD_ICMP_DUMP
+ 
+ # VSDB
+ DHDCFLAGS += -DVSDB
+@@ -217,7 +203,7 @@
+ DHDCFLAGS += -DDHD_USE_EXTENDED_HANG_REASON
+ 
+ # For special PNO Event keep wake lock for 10sec
+-DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
++DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=4
+ 
+ # For IPV6 Neighbor Discovery Offload Support
+ DHDCFLAGS += -DIPV6_NDO_SUPPORT
+--- drivers/bluetooth/bcm43xx.c	2022-09-20 19:52:37.000000000 +0000
++++ ../kernel-051e33145011bd3e97d9c09700a763b837961904/drivers/bluetooth/bcm43xx.c	2026-11-21 01:30:12.721702399 +0000
+@@ -149,7 +149,7 @@
+ 			port->ops->set_wake(port, wake);
+ 		}
+ #endif
+-		pr_err("[BT] set_wake_locked value = %d\n", wake);
++		pr_debug("[BT] set_wake_locked value = %d\n", wake);
+ 		bt_wake_state = wake;
+ 	}
+ }
+@@ -196,7 +196,7 @@
+ 		 * The chipset deasserts the hostwake lock, when there is no
+ 		 * more data to send.
+ 		 */
+-		pr_info("[BT] update_host_wake_locked host_wake is deasserted. release wakelock in 1s\n");
++		pr_debug("[BT] update_host_wake_locked host_wake is deasserted. release wakelock in 1s\n");
+ 		wake_lock_timeout(&bt_lpm.host_wake_lock, HZ);
+ 
+         if (bt_lpm.dev_wake == 0)
+--- drivers/gpu/arm/b_r16p0/platform/exynos/mali_kbase_platform.c	2022-09-20 19:52:37.000000000 +0000
++++ ../kernel-051e33145011bd3e97d9c09700a763b837961904/drivers/gpu/arm/b_r16p0/platform/exynos/mali_kbase_platform.c	2026-11-21 01:30:12.721702399 +0000
+@@ -308,6 +308,8 @@
+ 	gpu_update_config_data_bool(np, "gpu_default_wakeup_lock", &platform->wakeup_lock);
+ 	gpu_update_config_data_bool(np, "gpu_dynamic_abb", &platform->dynamic_abb_status);
+ 	gpu_update_config_data_int(np, "gpu_dvfs_polling_time", &platform->polling_speed);
++	if (platform->polling_speed > 20)
++		platform->polling_speed = 20;
+ 	gpu_update_config_data_bool(np, "gpu_pmqos_int_disable", &platform->pmqos_int_disable);
+ 	gpu_update_config_data_int(np, "gpu_pmqos_mif_max_clock", &platform->pmqos_mif_max_clock);
+ 	gpu_update_config_data_int(np, "gpu_pmqos_mif_max_clock_base", &platform->pmqos_mif_max_clock_base);
