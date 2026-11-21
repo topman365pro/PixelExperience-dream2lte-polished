@@ -64,10 +64,6 @@ Hardens, speeds up, and stabilizes the base PixelExperience 13 Plus build withou
 
 ---
 
-## Live Verification Results (`SM-G955F`, `dream2lte`)
-
-Verified on-device after flashing `PixelExperience_Plus_dream2lte-13.0-20261121-POLISHED.zip` in TWRP:
-
 | Check | Result |
 |---|---|
 | **Kernel** | `4.4.302-dream2lte-polished-p3` |
