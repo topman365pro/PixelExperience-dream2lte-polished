@@ -6,7 +6,7 @@ An optimized, SELinux-enforcing daily-driver build (`20261123-POLISHED`), kernel
 > ## Credits & Attribution
 > All foundational ROM, kernel, HAL, and device-tree work belongs to the original authors and maintainers:
 > - **Original ROM Author — [PawiX25](https://xdaforums.com/t/rom-13-unofficial-pixelexperience-for-s8-s8-and-note-8-19-10-2023.4637152/)**: Built and released the base `[ROM][13][UNOFFICIAL] PixelExperience for S8/S8+ and Note 8 [19/10/2023]` (`PixelExperience_Plus_dream2lte-13.0-20231020-1541`) that this release is built directly on top of.
->   - Original XDA Thread: <https://xdaforums.com/t/rom-13-unofficial-pixelexperience-for-s8-s8-and-note-8-19-10-2023.4637152/> ([Wayback Archive](https://web.archive.org/web/20251114020632/https://xdaforums.com/t/rom-13-unofficial-pixelexperience-for-s8-s8-and-note-8-19-10-2023.4637152/))
+>   - Original XDA Thread: <https://xdaforums.com/t/rom-13-unofficial-pixelexperience-for-s8-s8-and-note-8-19-10-2023.4637152/> 
 >   - Original ROM Folder (Google Drive): <https://drive.google.com/drive/folders/1ixZg5rAybvtYD47A-xn4svEoLKE6-u3Q>
 > - **Kernel, Device Trees & Exynos 8895 Platform — Ivan Meler (`ivanmeler`) & `8890q` contributors**: Maintainer of the Exynos 8895 Linux `4.4.302` kernel (`android_kernel_samsung_universal8895`), `dream2lte` / `universal8895-common` device trees, vendor blobs, SLSI-Linaro HALs, and [ivanmeler/local_manifests](https://github.com/ivanmeler/local_manifests).
 > - **PixelExperience ROM Source — `jhenrique09` & the PixelExperience Team**: [github.com/PixelExperience](https://github.com/PixelExperience).
