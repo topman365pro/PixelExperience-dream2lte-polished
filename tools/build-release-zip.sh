@@ -10,7 +10,7 @@ TOOLS="$ROOT/tools"
 STOCK_IMG="$BUILD/system.img"
 POLISHED_IMG="$BUILD/system-polished.img"
 BOOT_IMG="$BUILD/boot-dream2lte-pass3.img"
-OUT_ZIP="$RELEASE/PixelExperience_Plus_dream2lte-13.0-20261121-POLISHED.zip"
+OUT_ZIP="$RELEASE/PixelExperience_Plus_dream2lte-13.0-20261123-POLISHED.zip"
 
 DEBUGFS="/opt/homebrew/opt/e2fsprogs/sbin/debugfs"
 E2FSCK="/opt/homebrew/opt/e2fsprogs/sbin/e2fsck"
@@ -91,6 +91,8 @@ for dirpath, _, filenames in os.walk(staged):
             mode, label = "0100600", "u:object_r:system_file:s0"
         elif rel == "vendor/build.prop":
             mode, label = "0100600", "u:object_r:vendor_file:s0"
+        elif rel.startswith("vendor/lib64/egl/") or rel.startswith("vendor/lib/egl/"):
+            mode, label = "0100644", "u:object_r:same_process_hal_file:s0"
         elif rel.startswith("vendor/etc/"):
             mode, label = "0100644", "u:object_r:vendor_configs_file:s0"
         else:

@@ -1,10 +1,24 @@
-# PixelExperience 13 Plus (`dream2lte`) — 20261121-POLISHED Release Changelog
+# PixelExperience 13 Plus (`dream2lte`) — 20261123-POLISHED Release Changelog
 
 - **Target Device**: Samsung Galaxy S8+ (`SM-G955F`, `dream2lte`, Exynos 8895)
 - **Base ROM**: `PixelExperience_Plus_dream2lte-13.0-20231020-1541` (`TQ3A.230901.001.B1`, Android 13)
 - **Android Security Patch Level**: `2023-09-01` (`org.pixelexperience.build_security_patch=2023-09-01`)
 - **Vendor Security Patch Level**: `2021-04-01`
 - **Flash Method**: Dirty-flash safe over base PixelExperience 13 Plus (`SYSTEM` + `BOOT` updated; `/data` untouched; TWRP preserved)
+
+---
+
+## Pass 4 Graphics Driver Fix & Scaling Notes (`20261123-POLISHED`)
+
+### Graphics Driver (`vendor/lib{64,}/egl/libGLES_mali.so` — Mali-G71 `r16p0-01rel0`)
+- **Vulkan Per-Stage Sampled-Image Limit Fix**: Updated `VkPhysicalDeviceLimits` inside both 64-bit (`0x1d9d540`) and 32-bit (`0x1160f0`) Mali Vulkan drivers to raise `maxPerStageDescriptorSampledImages` from `16` to `64` and `maxPerStageResources` from `79` to `127` (preserving `maxDescriptorSetSampledImages = 96`).
+- **Fixes Unity / lilToon Shader Rejection**: Resolves `GraphicsCaps::InitVK()` capping `maxTexImageUnits` at `16`, allowing Unity `2022.3` / lilToon shaders (e.g., *Chill With You* `Hidden/ltspass_opaque`, `Hidden/ltspass_transparent`, `Hidden/ltspass_cutout` requiring `23–26` sampled-image slots per stage) to bind and render properly under Vulkan (`vkLoadingFailureCount = 0`, `0` crashes, `SELinux Enforcing`).
+- **Reproducible Tooling & SELinux Packaging**: Added `tools/patch-mali-vulkan-limits.py` (verifies stock sizes/SHA-256 before patching) and updated `tools/build-release-zip.sh` to label `vendor/lib*/egl/*` with `u:object_r:same_process_hal_file:s0` (`0100644`).
+
+### Optional: Persistent System-Wide Display Scaling (`1080x2220` @ `360 dpi`)
+- Reduces rendered pixel load by `43.75%` while keeping the exact `18.5:9` aspect ratio and native `480 dp` UI width (benchmarked `+51%` FPS in *Chill With You*, `9.59 -> 14.46 FPS`):
+  - **Apply (persists across reboots, no root required)**: `adb shell 'wm size 1080x2220 && wm density 360'`
+  - **Revert to native `1440x2960` @ `480 dpi`**: `adb shell 'wm size reset && wm density reset'`
 
 ---
 

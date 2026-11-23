@@ -1,6 +1,6 @@
 # PixelExperience 13 Plus (Polished) — Samsung Galaxy S8+ (`dream2lte`)
 
-An optimized, SELinux-enforcing daily-driver build (`20261121-POLISHED`), kernel (`4.4.302-dream2lte-polished-p3`), device/SELinux patches, and reproducible packaging tooling for the **Samsung Galaxy S8+ (`SM-G955F`, `dream2lte`, Exynos 8895)**, built on top of **PawiX25**'s PixelExperience 13 Plus release (`20231020-1541`) and **Ivan Meler / 8890q**'s Exynos 8895 kernel and device trees.
+An optimized, SELinux-enforcing daily-driver build (`20261123-POLISHED`), kernel (`4.4.302-dream2lte-polished-p3`), device/SELinux patches, and reproducible packaging tooling for the **Samsung Galaxy S8+ (`SM-G955F`, `dream2lte`, Exynos 8895)**, built on top of **PawiX25**'s PixelExperience 13 Plus release (`20231020-1541`) and **Ivan Meler / 8890q**'s Exynos 8895 kernel and device trees.
 
 > [!IMPORTANT]
 > ## Credits & Attribution
@@ -14,13 +14,13 @@ An optimized, SELinux-enforcing daily-driver build (`20261121-POLISHED`), kernel
 
 ---
 
-## Download (`v20261121-polished`)
+## Download (`v20261123-polished`)
 
-Download the flashable TWRP ROM ZIP directly from **[GitHub Releases (`v20261121-polished`)](https://github.com/topman365pro/PixelExperience-dream2lte-polished/releases/latest)**:
+Download the flashable TWRP ROM ZIP directly from **[GitHub Releases (`v20261123-polished`)](https://github.com/topman365pro/PixelExperience-dream2lte-polished/releases/latest)**:
 
 | Artifact | Size | SHA-256 | Purpose |
 |---|---:|---|---|
-| **`PixelExperience_Plus_dream2lte-13.0-20261121-POLISHED.zip`** | `1,404,235,109` B (`1.31 GiB`) | `3fa5f6e2bc9171ba64e512d28381dcd07307f60edf68e8ff421be8282c73da64` | Full signed TWRP-flashable ROM (`SYSTEM` + `BOOT`; preserves `/data` & TWRP) |
+| **`PixelExperience_Plus_dream2lte-13.0-20261123-POLISHED.zip`** | `1,403,935,228` B (`1.31 GiB`) | `f8a2503965cdffd4e3611e2ea7b9ca7098cee6c6e1093a0827bddd14286d872b` | Full signed TWRP-flashable ROM (`SYSTEM` + `BOOT`; preserves `/data` & TWRP) |
 | **`boot-dream2lte-pass3.img`** *(optional)* | `32,219,152` B (`30.7 MiB`) | `5490973f2cd2012d7a65fb0c77985b938d1a2f528f8beed7851707379c848b44` | Standalone kernel boot image (`4.4.302-dream2lte-polished-p3`), already included inside the ZIP |
 | **`SHA256SUMS.txt`** | `203` B | — | Checksums for the release ZIP and `CHANGELOG.md` |
 
@@ -62,6 +62,9 @@ Hardens, speeds up, and stabilizes the base PixelExperience 13 Plus build withou
   - *Note*: `MEETS_DEVICE_INTEGRITY` and `MEETS_STRONG_INTEGRITY` still require a locked bootloader and an unrevoked hardware TEE keybox.
 - **Bixby Button**: Remapped scancode `703` to `ASSIST` in `gpio_keys.kl` and patched `PhoneWindowManager.shouldDisableKey(int)` in `services.jar` so the Bixby button (and pressure-sensitive Home key) remain active with gesture/navbar navigation enabled.
 
+### 6. Graphics Driver (Pass 4 — Mali-G71 `r16p0-01rel0` Vulkan Fix)
+- **Vulkan Per-Stage Sampled-Image Limit (`vendor/lib{64,}/egl/libGLES_mali.so`)**: Patched `VkPhysicalDeviceLimits` in both 64-bit (`0x1d9d540`) and 32-bit (`0x1160f0`) Mali drivers via [`tools/patch-mali-vulkan-limits.py`](tools/patch-mali-vulkan-limits.py) to raise `maxPerStageDescriptorSampledImages` from `16` to `64` and `maxPerStageResources` from `79` to `127` (preserving `maxDescriptorSetSampledImages = 96`), labeled `u:object_r:same_process_hal_file:s0`. Fixes Unity `2022.3` / lilToon shader rejection (e.g., *Chill With You* `Hidden/ltspass_*` requiring `23–26` sampled-image slots per stage) while keeping `vkLoadingFailureCount = 0` and `SELinux Enforcing`.
+
 ---
 
 | Check | Result |
@@ -74,6 +77,7 @@ Hardens, speeds up, and stabilizes the base PixelExperience 13 Plus build withou
 | **Perfetto / Wi-Fi Debug** | `traced` & `traced_probes` stopped (`persist.traced.enable=0`); `wpa_supplicant` without `-dd` |
 | **UFS / Network** | `sda/scheduler=noop [deadline] cfq` (`rq_affinity=2`); `fq_codel`, `tcp_fastopen=3`, `westwood` |
 | **Cellular / Wi-Fi / Bluetooth** | DSDS LTE (`IRadio@1.4/slot1` & `slot2`), Wi-Fi validated (`8.8.8.8` 0% loss, `30.3 ms` avg), BT `ON` (`0` crashes), all 12 HAL groups registered |
+| **Vulkan Driver (Pass 4)** | `vkLoadingFailureCount = 0`, `maxPerStageDescriptorSampledImages = 64` (Unity/lilToon shaders render cleanly) |
 | **Play Integrity (`SPIC`)** | `MEETS_BASIC_INTEGRITY`, `PLAY_RECOGNIZED`, `LICENSED` |
 
 ---
@@ -83,7 +87,7 @@ Hardens, speeds up, and stabilizes the base PixelExperience 13 Plus build withou
 1. **Back up first**: Take a TWRP backup of `Boot`, `System`, `Data`, and `EFS` before flashing.
 2. **Flash in TWRP**:
    - Dirty-flash safe over base `PixelExperience_Plus_dream2lte-13.0-20231020-1541` (`SYSTEM` and `BOOT` are updated; `/data` and TWRP are preserved).
-   - Boot into TWRP -> **Install** -> select `PixelExperience_Plus_dream2lte-13.0-20261121-POLISHED.zip` (or use `adb sideload`).
+   - Boot into TWRP -> **Install** -> select `PixelExperience_Plus_dream2lte-13.0-20261123-POLISHED.zip` (or use `adb sideload`).
 3. *(Optional, for magnetometer calibration EFS label on existing `/efs`)* In TWRP with `/efs` mounted `rw`:
    ```sh
    chcon u:object_r:sensor_factoryapp_efs_file:s0 /efs/FactoryApp/mag_cal_param
@@ -98,6 +102,16 @@ adb shell setprop debug.pihooks.security_patch "<YYYY-MM-DD>"
 adb shell "pm clear com.android.vending && am force-stop com.google.android.gms"
 ```
 *(Never run `pm clear com.google.android.gms` when testing Play Integrity.)*
+
+### Optional: Persistent System-Wide 1080p Scaling (No Root Required)
+To reduce GPU fill-rate load by `43.75%` (`+51%` FPS in GPU-bound apps) while preserving the `18.5:9` aspect ratio and native `480 dp` UI width across reboots:
+```bash
+adb shell 'wm size 1080x2220 && wm density 360'
+```
+Revert to native `1440x2960` @ `480 dpi` anytime:
+```bash
+adb shell 'wm size reset && wm density reset'
+```
 
 ---
 
