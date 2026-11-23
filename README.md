@@ -63,8 +63,7 @@ Hardens, speeds up, and stabilizes the base PixelExperience 13 Plus build withou
 - **Bixby Button**: Remapped scancode `703` to `ASSIST` in `gpio_keys.kl` and patched `PhoneWindowManager.shouldDisableKey(int)` in `services.jar` so the Bixby button (and pressure-sensitive Home key) remain active with gesture/navbar navigation enabled.
 
 ### 6. Graphics Driver (Pass 4 — Mali-G71 `r16p0-01rel0` Vulkan Fix)
-- **Vulkan Per-Stage Sampled-Image Limit (`vendor/lib{64,}/egl/libGLES_mali.so`)**: Patched `VkPhysicalDeviceLimits` in both 64-bit (`0x1d9d540`) and 32-bit (`0x1160f0`) Mali drivers via [`tools/patch-mali-vulkan-limits.py`](tools/patch-mali-vulkan-limits.py) to raise `maxPerStageDescriptorSampledImages` from `16` to `64` and `maxPerStageResources` from `79` to `127` (preserving `maxDescriptorSetSampledImages = 96`), labeled `u:object_r:same_process_hal_file:s0`. Fixes Unity `2022.3` / lilToon shader rejection (e.g., *Chill With You* `Hidden/ltspass_*` requiring `23–26` sampled-image slots per stage) while keeping `vkLoadingFailureCount = 0` and `SELinux Enforcing`.
-
+- **Vulkan Per-Stage Sampled-Image Limit (`vendor/lib{64,}/egl/libGLES_mali.so`)**: Patched `VkPhysicalDeviceLimits` in both 64-bit (`0x1d9d540`) and 32-bit (`0x1160f0`) Mali drivers via [`tools/patch-mali-vulkan-limits.py`](tools/patch-mali-vulkan-limits.py) to raise `maxPerStageDescriptorSampledImages` from `16` to `64` and `maxPerStageResources` from `79` to `127` (preserving `maxDescriptorSetSampledImages = 96`), labeled `u:object_r:same_process_hal_file:s0`.
 ---
 
 | Check | Result |
