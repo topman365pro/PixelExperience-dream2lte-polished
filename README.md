@@ -76,7 +76,7 @@ Hardens, speeds up, and stabilizes the base PixelExperience 13 Plus build withou
 | **Perfetto / Wi-Fi Debug** | `traced` & `traced_probes` stopped (`persist.traced.enable=0`); `wpa_supplicant` without `-dd` |
 | **UFS / Network** | `sda/scheduler=noop [deadline] cfq` (`rq_affinity=2`); `fq_codel`, `tcp_fastopen=3`, `westwood` |
 | **Cellular / Wi-Fi / Bluetooth** | DSDS LTE (`IRadio@1.4/slot1` & `slot2`), Wi-Fi validated (`8.8.8.8` 0% loss, `30.3 ms` avg), BT `ON` (`0` crashes), all 12 HAL groups registered |
-| **Vulkan Driver (Pass 4)** | `vkLoadingFailureCount = 0`, `maxPerStageDescriptorSampledImages = 64` (Unity/lilToon shaders render cleanly) |
+| **Vulkan Driver (Pass 4)** | `vkLoadingFailureCount = 0`, `maxPerStageDescriptorSampledImages = 64` (Unity shaders render cleanly) |
 | **Play Integrity (`SPIC`)** | `MEETS_BASIC_INTEGRITY`, `PLAY_RECOGNIZED`, `LICENSED` |
 
 ---
